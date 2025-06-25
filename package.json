@@ -9,8 +9,7 @@
     "client": "cd client && npm start",
     "build": "cd client && npm run build",
     "install-client": "cd client && npm install",
-    "setup": "node setup.js",
-    "deploy-build": "npm run install-client && npm run build"
+    "setup": "node setup.js"
   },
   "dependencies": {
     "express": "^4.18.2",

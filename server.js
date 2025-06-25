@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const http = require('http');
 const socketIo = require('socket.io');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -22,11 +21,6 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-
-// Serve static files from React build
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('client/build'));
-}
 
 // Database configuration
 const dbConfig = {
@@ -389,13 +383,6 @@ app.delete('/api/tournaments/:id', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
-
-// Catch-all route for React Router (must be last)
-if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
-  });
-}
 
 // Helper to format date as dd/mm/yyyy
 const formatDate = (date) => {
