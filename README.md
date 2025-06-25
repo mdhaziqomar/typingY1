@@ -1,4 +1,4 @@
-# 🏆 Chung Hwa Typing Competition
+# 🏆 Chung Hwa Middle School BSB Typing Competition Management
 
 A modern, real-time typing competition system designed specifically for Chung Hwa Middle School students in Bandar Seri Begawan, Brunei. Built with React, Node.js, MySQL, and featuring the beautiful Catppuccin Mocha theme.
 
