@@ -1,12 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const http = require('http');
 const socketIo = require('socket.io');
 require('dotenv').config();
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -20,52 +21,52 @@ const io = socketIo(server, {
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+
+// Serve static files from the React app in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static('client/build'));
+} else {
+  app.use(express.static('public'));
+}
 
 // Database configuration
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
+  user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'typing_competition',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  timezone: '+08:00' // Asia/Brunei
+  port: process.env.DB_PORT || 5432,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 };
 
 // Create database connection pool
-const pool = mysql.createPool(dbConfig);
+const pool = new Pool(dbConfig);
 
 // Initialize database tables
 async function initializeDatabase() {
   try {
-    const connection = await pool.getConnection();
-    
-    // Create database if not exists
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\``);
-    await connection.query(`USE \`${dbConfig.database}\``);
+    const connection = await pool.connect();
     
     // Create tournaments table
-    await connection.execute(`
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS tournaments (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         description TEXT,
-        start_date DATETIME,
-        end_date DATETIME,
-        status ENUM('upcoming', 'active', 'completed') DEFAULT 'upcoming',
+        start_date TIMESTAMP,
+        end_date TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'active', 'completed')),
         typing_text TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
     // Create invite_codes table
-    await connection.execute(`
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS invite_codes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         code VARCHAR(50) UNIQUE NOT NULL,
-        tournament_id INT,
+        tournament_id INTEGER,
         student_name VARCHAR(255),
         student_class VARCHAR(100),
         is_used BOOLEAN DEFAULT FALSE,
@@ -75,18 +76,18 @@ async function initializeDatabase() {
     `);
     
     // Create results table
-    await connection.execute(`
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS results (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        invite_code_id INT,
-        tournament_id INT,
+        id SERIAL PRIMARY KEY,
+        invite_code_id INTEGER,
+        tournament_id INTEGER,
         student_name VARCHAR(255),
         student_class VARCHAR(100),
         wpm DECIMAL(5,2),
         accuracy DECIMAL(5,2),
-        total_words INT,
-        correct_words INT,
-        time_taken INT,
+        total_words INTEGER,
+        correct_words INTEGER,
+        time_taken INTEGER,
         completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (invite_code_id) REFERENCES invite_codes(id),
         FOREIGN KEY (tournament_id) REFERENCES tournaments(id)
@@ -94,9 +95,9 @@ async function initializeDatabase() {
     `);
     
     // Create admin table
-    await connection.execute(`
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS admins (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         username VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -104,10 +105,10 @@ async function initializeDatabase() {
     `);
     
     // Insert default admin if not exists
-    const [adminRows] = await connection.execute('SELECT * FROM admins WHERE username = ?', ['admin']);
-    if (adminRows.length === 0) {
+    const { rows } = await connection.query('SELECT * FROM admins WHERE username = $1', ['admin']);
+    if (rows.length === 0) {
       const hashedPassword = await bcrypt.hash('admin123', 10);
-      await connection.execute('INSERT INTO admins (username, password_hash) VALUES (?, ?)', ['admin', hashedPassword]);
+      await connection.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2)', ['admin', hashedPassword]);
     }
     
     connection.release();
@@ -139,7 +140,7 @@ io.on('connection', (socket) => {
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    const [rows] = await pool.execute('SELECT * FROM admins WHERE username = ?', [username]);
+    const { rows } = await pool.query('SELECT * FROM admins WHERE username = $1', [username]);
     
     if (rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -163,11 +164,11 @@ app.post('/api/admin/login', async (req, res) => {
 app.post('/api/tournaments', async (req, res) => {
   try {
     const { name, description, start_date, end_date, typing_text } = req.body;
-    const [result] = await pool.execute(
-      'INSERT INTO tournaments (name, description, start_date, end_date, typing_text) VALUES (?, ?, ?, ?, ?)',
+    const { rows } = await pool.query(
+      'INSERT INTO tournaments (name, description, start_date, end_date, typing_text) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       [name, description, start_date, end_date, typing_text]
     );
-    res.json({ id: result.insertId, message: 'Tournament created successfully' });
+    res.json({ id: rows[0].id, message: 'Tournament created successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -176,7 +177,7 @@ app.post('/api/tournaments', async (req, res) => {
 // Get all tournaments
 app.get('/api/tournaments', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM tournaments ORDER BY created_at DESC');
+    const { rows } = await pool.query('SELECT * FROM tournaments ORDER BY created_at DESC');
     // Format start_date, end_date, created_at
     const formatted = rows.map(row => ({
       ...row,
@@ -193,7 +194,7 @@ app.get('/api/tournaments', async (req, res) => {
 // Get tournament details (add if not exists)
 app.get('/api/tournaments/:id', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM tournaments WHERE id = ?', [req.params.id]);
+    const { rows } = await pool.query('SELECT * FROM tournaments WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Tournament not found' });
     const row = rows[0];
     res.json({
@@ -215,8 +216,8 @@ app.post('/api/invite-codes', async (req, res) => {
     
     for (let i = 0; i < student_names.length; i++) {
       const code = uuidv4().substring(0, 8).toUpperCase();
-      await pool.execute(
-        'INSERT INTO invite_codes (code, tournament_id, student_name, student_class) VALUES (?, ?, ?, ?)',
+      await pool.query(
+        'INSERT INTO invite_codes (code, tournament_id, student_name, student_class) VALUES ($1, $2, $3, $4)',
         [code, tournament_id, student_names[i], student_classes[i]]
       );
       codes.push({ code, student_name: student_names[i], student_class: student_classes[i] });
@@ -231,8 +232,8 @@ app.post('/api/invite-codes', async (req, res) => {
 // Get invite codes for a tournament
 app.get('/api/tournaments/:id/invite-codes', async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      'SELECT * FROM invite_codes WHERE tournament_id = ? ORDER BY created_at DESC',
+    const { rows } = await pool.query(
+      'SELECT * FROM invite_codes WHERE tournament_id = $1 ORDER BY created_at DESC',
       [req.params.id]
     );
     // Format created_at
@@ -250,8 +251,8 @@ app.get('/api/tournaments/:id/invite-codes', async (req, res) => {
 app.post('/api/student/login', async (req, res) => {
   try {
     const { code } = req.body;
-    const [rows] = await pool.execute(
-      'SELECT ic.*, t.name as tournament_name, t.status as tournament_status FROM invite_codes ic JOIN tournaments t ON ic.tournament_id = t.id WHERE ic.code = ?',
+    const { rows } = await pool.query(
+      'SELECT ic.*, t.name as tournament_name, t.status as tournament_status FROM invite_codes ic JOIN tournaments t ON ic.tournament_id = t.id WHERE ic.code = $1',
       [code]
     );
     
@@ -304,11 +305,11 @@ app.post('/api/results', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
     
     // Mark invite code as used
-    await pool.execute('UPDATE invite_codes SET is_used = TRUE WHERE id = ?', [decoded.invite_code_id]);
+    await pool.query('UPDATE invite_codes SET is_used = TRUE WHERE id = $1', [decoded.invite_code_id]);
     
     // Insert result
-    const [result] = await pool.execute(
-      'INSERT INTO results (invite_code_id, tournament_id, student_name, student_class, wpm, accuracy, total_words, correct_words, time_taken) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    const { rows } = await pool.query(
+      'INSERT INTO results (invite_code_id, tournament_id, student_name, student_class, wpm, accuracy, total_words, correct_words, time_taken) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
       [decoded.invite_code_id, decoded.tournament_id, decoded.student_name, decoded.student_class, wpm, accuracy, total_words, correct_words, time_taken]
     );
     
@@ -331,8 +332,8 @@ app.post('/api/results', async (req, res) => {
 // Get tournament results
 app.get('/api/tournaments/:id/results', async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      'SELECT * FROM results WHERE tournament_id = ? ORDER BY wpm DESC, accuracy DESC',
+    const { rows } = await pool.query(
+      'SELECT * FROM results WHERE tournament_id = $1 ORDER BY wpm DESC, accuracy DESC',
       [req.params.id]
     );
     // Format completed_at
@@ -350,7 +351,7 @@ app.get('/api/tournaments/:id/results', async (req, res) => {
 app.put('/api/tournaments/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
-    await pool.execute('UPDATE tournaments SET status = ? WHERE id = ?', [status, req.params.id]);
+    await pool.query('UPDATE tournaments SET status = $1 WHERE id = $2', [status, req.params.id]);
     res.json({ message: 'Tournament status updated successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -361,7 +362,7 @@ app.put('/api/tournaments/:id/status', async (req, res) => {
 app.delete('/api/invite-codes/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.execute('DELETE FROM invite_codes WHERE id = ?', [id]);
+    await pool.query('DELETE FROM invite_codes WHERE id = $1', [id]);
     res.json({ message: 'Invite code deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -373,11 +374,11 @@ app.delete('/api/tournaments/:id', async (req, res) => {
   try {
     const { id } = req.params;
     // Delete results first
-    await pool.execute('DELETE FROM results WHERE tournament_id = ?', [id]);
+    await pool.query('DELETE FROM results WHERE tournament_id = $1', [id]);
     // Delete invite codes
-    await pool.execute('DELETE FROM invite_codes WHERE tournament_id = ?', [id]);
+    await pool.query('DELETE FROM invite_codes WHERE tournament_id = $1', [id]);
     // Delete tournament
-    await pool.execute('DELETE FROM tournaments WHERE id = ?', [id]);
+    await pool.query('DELETE FROM tournaments WHERE id = $1', [id]);
     res.json({ message: 'Tournament deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -393,6 +394,13 @@ const formatDate = (date) => {
   const year = d.getFullYear();
   return `${day}/${month}/${year}`;
 };
+
+// Catch-all handler for React app in production
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {

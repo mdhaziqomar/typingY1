@@ -1,0 +1,38 @@
+databases:
+  - name: typing-competition-db
+    databaseName: typing_competition
+    user: typing_user
+    plan: free
+
+services:
+  - type: web
+    name: typing-competition
+    env: node
+    plan: free
+    buildCommand: npm install && cd client && npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        fromDatabase:
+          name: typing-competition-db
+          property: host
+      - key: DB_USER
+        fromDatabase:
+          name: typing-competition-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: typing-competition-db
+          property: password
+      - key: DB_NAME
+        fromDatabase:
+          name: typing-competition-db
+          property: database
+      - key: DB_PORT
+        fromDatabase:
+          name: typing-competition-db
+          property: port
+      - key: JWT_SECRET
+        generateValue: true 

@@ -12,19 +12,24 @@
     "setup": "node setup.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mysql2": "^3.6.5",
-    "cors": "^2.8.5",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "socket.io": "^4.7.4",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.2",
+    "socket.io": "^4.7.4",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
   },
-  "keywords": ["typing", "competition", "education", "school"],
+  "keywords": [
+    "typing",
+    "competition",
+    "education",
+    "school"
+  ],
   "author": "Haziq Omar of IT Department, Chung Hwa Middle School BSB",
   "license": "MIT"
-} 
+}
