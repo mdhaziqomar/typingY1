@@ -11,6 +11,7 @@ const ManageInviteCodes = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [bulkData, setBulkData] = useState('');
+  const [customCode, setCustomCode] = useState('');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, value: '' });
@@ -88,6 +89,31 @@ const ManageInviteCodes = () => {
 
       setSuccess(`Generated ${response.data.codes.length} invite codes successfully!`);
       setBulkData('');
+      loadInviteCodes(selectedTournament);
+    } catch (error) {
+      setError(error.response?.data?.error || 'An error occurred');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleCreateCustomCode = async () => {
+    if (!selectedTournament || !customCode.trim()) {
+      setError('Please select a tournament and enter a code');
+      return;
+    }
+
+    setGenerating(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await axios.post('/api/invite-codes/custom', {
+        tournament_id: selectedTournament,
+        code: customCode.trim().toUpperCase()
+      });
+      setSuccess(response.data.message);
+      setCustomCode('');
       loadInviteCodes(selectedTournament);
     } catch (error) {
       setError(error.response?.data?.error || 'An error occurred');
@@ -177,6 +203,49 @@ const ManageInviteCodes = () => {
 
         {selectedTournament && (
           <>
+            {/* Custom Code Creation */}
+            <div className="card mb-6">
+              <h2 className="text-xl font-semibold text-text mb-4">Create Custom Invite Code</h2>
+
+              <div className="mb-4 flex items-center space-x-4">
+                <input
+                  type="text"
+                  value={customCode}
+                  onChange={(e) => setCustomCode(e.target.value.toUpperCase())}
+                  className="input-field flex-1 text-center font-mono text-lg"
+                  placeholder="ENTER CODE (4-20 A-Z/0-9)"
+                  maxLength={20}
+                />
+
+                <button
+                  onClick={handleCreateCustomCode}
+                  disabled={generating || !customCode.trim()}
+                  className="btn-primary px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generating ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-crust mr-2"></div>
+                      Creating...
+                    </div>
+                  ) : (
+                    'Create'
+                  )}
+                </button>
+              </div>
+
+              {error && (
+                <div className="bg-red bg-opacity-20 border border-red text-red px-4 py-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-green bg-opacity-20 border border-green text-green px-4 py-3 rounded-lg">
+                  {success}
+                </div>
+              )}
+            </div>
+
             {/* Bulk Generation */}
             <div className="card mb-6">
               <h2 className="text-xl font-semibold text-text mb-4">Generate Invite Codes</h2>

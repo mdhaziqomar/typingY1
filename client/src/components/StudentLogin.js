@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const StudentLogin = () => {
+  const [studentName, setStudentName] = useState('');
+  const [studentClass, setStudentClass] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -14,7 +16,11 @@ const StudentLogin = () => {
     setError('');
 
     try {
-      const response = await axios.post('/api/student/login', { code: inviteCode });
+      const response = await axios.post('/api/student/login', {
+        code: inviteCode,
+        student_name: studentName,
+        student_class: studentClass
+      });
       localStorage.setItem('studentToken', response.data.token);
       localStorage.setItem('studentName', response.data.student_name);
       localStorage.setItem('studentClass', response.data.student_class);
@@ -41,6 +47,36 @@ const StudentLogin = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
+            <label htmlFor="studentName" className="block text-sm font-medium text-text mb-2">
+              Student Name
+            </label>
+            <input
+              type="text"
+              id="studentName"
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              className="input-field w-full text-center text-lg"
+              placeholder="Enter your full name"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="studentClass" className="block text-sm font-medium text-text mb-2">
+              Class
+            </label>
+            <input
+              type="text"
+              id="studentClass"
+              value={studentClass}
+              onChange={(e) => setStudentClass(e.target.value)}
+              className="input-field w-full text-center text-lg"
+              placeholder="E.g. 7A"
+              required
+            />
+          </div>
+
+          <div>
             <label htmlFor="inviteCode" className="block text-sm font-medium text-text mb-2">
               Invite Code
             </label>
@@ -64,7 +100,7 @@ const StudentLogin = () => {
 
           <button
             type="submit"
-            disabled={loading || !inviteCode}
+            disabled={loading || !inviteCode || !studentName.trim() || !studentClass.trim()}
             className="btn-primary w-full py-3 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (

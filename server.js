@@ -33,7 +33,7 @@ if (process.env.NODE_ENV === 'production') {
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '',
+  password: process.env.DB_PASSWORD || '1234',
   database: process.env.DB_NAME || 'typing_competition',
   port: process.env.DB_PORT || 5432,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -229,6 +229,39 @@ app.post('/api/invite-codes', async (req, res) => {
   }
 });
 
+// Create a custom invite code
+app.post('/api/invite-codes/custom', async (req, res) => {
+  try {
+    const { tournament_id, code } = req.body;
+
+    if (!tournament_id || !code) {
+      return res.status(400).json({ error: 'tournament_id and code are required' });
+    }
+
+    const trimmedCode = String(code).trim().toUpperCase();
+
+    // Basic validation – at least 4 characters alphanumeric
+    if (!/^[A-Z0-9]{4,20}$/.test(trimmedCode)) {
+      return res.status(400).json({ error: 'Code must be 4-20 alphanumeric characters' });
+    }
+
+    // Check if code already exists
+    const existing = await pool.query('SELECT id FROM invite_codes WHERE code = $1', [trimmedCode]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Code already exists' });
+    }
+
+    await pool.query(
+      'INSERT INTO invite_codes (code, tournament_id) VALUES ($1, $2)',
+      [trimmedCode, tournament_id]
+    );
+
+    res.json({ code: trimmedCode, message: 'Custom invite code created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get invite codes for a tournament
 app.get('/api/tournaments/:id/invite-codes', async (req, res) => {
   try {
@@ -247,44 +280,45 @@ app.get('/api/tournaments/:id/invite-codes', async (req, res) => {
   }
 });
 
-// Student login with invite code
+// Student login with invite code (reusable codes)
 app.post('/api/student/login', async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, student_name, student_class } = req.body;
+
+    if (!student_name || !student_class) {
+      return res.status(400).json({ error: 'Student name and class are required' });
+    }
+
     const { rows } = await pool.query(
       'SELECT ic.*, t.name as tournament_name, t.status as tournament_status FROM invite_codes ic JOIN tournaments t ON ic.tournament_id = t.id WHERE ic.code = $1',
       [code]
     );
-    
+
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Invalid invite code' });
     }
-    
+
     const inviteCode = rows[0];
-    
-    if (inviteCode.is_used) {
-      return res.status(400).json({ error: 'This invite code has already been used' });
-    }
-    
+
     if (inviteCode.tournament_status !== 'active') {
       return res.status(400).json({ error: 'Tournament is not active' });
     }
-    
+
     const token = jwt.sign(
-      { 
-        invite_code_id: inviteCode.id, 
-        student_name: inviteCode.student_name,
-        student_class: inviteCode.student_class,
-        tournament_id: inviteCode.tournament_id 
-      }, 
-      process.env.JWT_SECRET || 'secret', 
+      {
+        invite_code_id: inviteCode.id,
+        student_name,
+        student_class,
+        tournament_id: inviteCode.tournament_id
+      },
+      process.env.JWT_SECRET || 'secret',
       { expiresIn: '2h' }
     );
-    
-    res.json({ 
-      token, 
-      student_name: inviteCode.student_name,
-      student_class: inviteCode.student_class,
+
+    res.json({
+      token,
+      student_name,
+      student_class,
       tournament_name: inviteCode.tournament_name
     });
   } catch (error) {
@@ -304,9 +338,9 @@ app.post('/api/results', async (req, res) => {
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
     
-    // Mark invite code as used
+    // Mark invite code as used (for tracking; code remains reusable)
     await pool.query('UPDATE invite_codes SET is_used = TRUE WHERE id = $1', [decoded.invite_code_id]);
-    
+
     // Insert result
     const { rows } = await pool.query(
       'INSERT INTO results (invite_code_id, tournament_id, student_name, student_class, wpm, accuracy, total_words, correct_words, time_taken) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
