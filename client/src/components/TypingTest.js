@@ -31,8 +31,9 @@ const TypingTest = () => {
         const response = await axios.get(`/api/tournaments/${tournamentId}`);
         setText(response.data.typing_text || '');
         setTotalWords((response.data.typing_text || '').split(' ').length);
-        setTimerDuration(response.data.timer_duration || 60);
-        setTimeLeft(response.data.timer_duration || 60);
+        const duration = response.data.timer_duration !== undefined ? response.data.timer_duration : 60;
+        setTimerDuration(duration);
+        setTimeLeft(duration);
       } catch (err) {
         setText('Error loading typing passage.');
         setTotalWords(0);
@@ -43,16 +44,18 @@ const TypingTest = () => {
 
   useEffect(() => {
     let interval = null;
-    if (isActive && timeLeft > 0) {
+    if (isActive && (timerDuration === 0 || timeLeft > 0)) {
       interval = setInterval(() => {
-        setTimeLeft(timeLeft => timeLeft - 1);
+        if (timerDuration > 0) {
+          setTimeLeft(timeLeft => timeLeft - 1);
+        }
         setElapsed(elapsed => elapsed + 1);
       }, 1000);
-    } else if (timeLeft === 0 && isActive) {
+    } else if (timeLeft === 0 && isActive && timerDuration > 0) {
       finishTest();
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, timerDuration]);
 
   const startTest = () => {
     setIsActive(true);
@@ -64,7 +67,7 @@ const TypingTest = () => {
     setIsActive(false);
     setIsFinished(true);
     
-    const timeTaken = timerDuration - timeLeft;
+    const timeTaken = timerDuration === 0 ? elapsed : timerDuration - timeLeft;
     const calculatedWpm = Math.round((correctWords / timeTaken) * 60);
     const calculatedAccuracy = Math.round(((totalWords - errors.length) / totalWords) * 100);
     
@@ -97,26 +100,54 @@ const TypingTest = () => {
     setUserInput(value);
     
     // Check for errors
-    const newErrors = [];
+    const newErrors = [...errors]; // Keep existing errors
+    
+    // Simple character-by-character comparison
     for (let i = 0; i < value.length; i++) {
-      if (value[i] !== text[i]) {
-        newErrors.push(i);
+      if (i >= text.length || value[i] !== text[i]) {
+        if (!newErrors.includes(i)) {
+          newErrors.push(i);
+        }
+      } else {
+        // Remove error if character is now correct
+        const errorIndex = newErrors.indexOf(i);
+        if (errorIndex > -1) {
+          newErrors.splice(errorIndex, 1);
+        }
       }
     }
+    
+    // Temporary debug
+    if (newErrors.length > 0) {
+      console.log('Errors detected at positions:', newErrors, 'Current index:', currentIndex);
+      console.log('Text at error position:', text[newErrors[0]], 'Value at error position:', value[newErrors[0]]);
+    }
+    
     setErrors(newErrors);
     
     // Update current index
     setCurrentIndex(value.length);
     
-    // Calculate correct words
-    const words = text.split(' ');
-    const userWords = value.split(' ');
+    // Calculate correct words (strict: all chars including whitespace/line break must match)
     let correct = 0;
-    
-    for (let i = 0; i < userWords.length - 1; i++) {
-      if (userWords[i] === words[i]) {
+    let passageIdx = 0;
+    let inputIdx = 0;
+    while (passageIdx < text.length && inputIdx < value.length) {
+      // Find next word boundary in passage
+      let wordEnd = passageIdx;
+      while (wordEnd < text.length && text[wordEnd] !== ' ' && text[wordEnd] !== '\n') {
+        wordEnd++;
+      }
+      // The boundary char (space or line break)
+      let boundaryChar = text[wordEnd] || '';
+      // The word including boundary
+      let passageWord = text.slice(passageIdx, wordEnd) + boundaryChar;
+      let inputWord = value.slice(inputIdx, inputIdx + passageWord.length);
+      if (inputWord === passageWord) {
         correct++;
       }
+      passageIdx += passageWord.length;
+      inputIdx += passageWord.length;
     }
     setCorrectWords(correct);
 
@@ -131,13 +162,23 @@ const TypingTest = () => {
   };
 
   const getCharacterClass = (index) => {
-    if (index < currentIndex) {
-      return errors.includes(index) ? 'typing-incorrect' : 'typing-correct';
-    } else if (index === currentIndex) {
-      return 'typing-cursor';
-    } else {
-      return 'typing-pending';
+    // First check if this character has an error
+    if (errors.includes(index)) {
+      return 'typing-incorrect';
     }
+    
+    // Then check if it's the current cursor position
+    if (index === currentIndex) {
+      return 'typing-cursor';
+    }
+    
+    // Then check if it's been typed (before current position)
+    if (index < currentIndex) {
+      return 'typing-correct';
+    }
+    
+    // Otherwise it's pending
+    return 'typing-pending';
   };
 
   const formatTime = (seconds) => {
@@ -203,7 +244,9 @@ const TypingTest = () => {
         <div className="card mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
             <div>
-              <div className="text-2xl font-bold text-red">{formatTime(timeLeft)}</div>
+              <div className="text-2xl font-bold text-red">
+                {timerDuration === 0 ? '∞' : formatTime(timeLeft)}
+              </div>
               <div className="text-subtext0">Time Remaining</div>
             </div>
             <div>
@@ -246,11 +289,33 @@ const TypingTest = () => {
         <div className="card">
           <div className="mb-6">
             <div className="typing-text bg-surface1 p-6 rounded-lg min-h-[200px] leading-relaxed">
-              {text.split('').map((char, index) => (
-                <span key={index} className={getCharacterClass(index)}>
-                  {char}
-                </span>
-              ))}
+              {text.split('').map((char, index) => {
+                let cls = '';
+                let displayChar = char === ' ' ? '\u00A0' : char;
+                // If a line break is expected but not typed, or vice versa, show a red block
+                if (index < userInput.length) {
+                  if (userInput[index] === char) {
+                    cls = 'typing-correct';
+                  } else {
+                    // Special case: line break vs space or any other mismatch
+                    if ((char === '\n' && userInput[index] !== '\n') || (char !== '\n' && userInput[index] === '\n')) {
+                      cls = 'typing-incorrect';
+                      displayChar = <span style={{display:'inline-block',width:'1em',height:'1em',background:'#f87171',borderRadius:'0.2em',verticalAlign:'middle'}} title="Line break error"></span>;
+                    } else {
+                      cls = 'typing-incorrect';
+                    }
+                  }
+                } else if (index === userInput.length) {
+                  cls = 'typing-cursor';
+                } else {
+                  cls = 'typing-pending';
+                }
+                return (
+                  <span key={index} className={cls}>
+                    {displayChar}
+                  </span>
+                );
+              })}
             </div>
           </div>
           
