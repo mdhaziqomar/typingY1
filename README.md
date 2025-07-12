@@ -6,7 +6,7 @@ A modern, real-time typing competition system designed specifically for Chung Hw
 
 ### For Students
 - **Secure Login**: Students login using reusable invite codes (bulk-generated or custom)
-- **1-Minute Typing Challenge**: Timed typing tests with age-appropriate texts
+- **Flexible Typing Challenges**: Configurable timer (1, 3, 5 minutes or unlimited time)
 - **Real-time Results**: Live leaderboard updates as students complete challenges
 - **Beautiful UI**: Modern interface with Catppuccin Mocha theme
 - **Progress Tracking**: Real-time WPM, accuracy, and progress indicators
@@ -17,6 +17,8 @@ A modern, real-time typing competition system designed specifically for Chung Hw
 - **Real-time Monitoring**: Watch results come in live
 - **Data Export**: Export results to CSV for analysis
 - **Comprehensive Dashboard**: Overview of all tournaments and statistics
+- **Tournament Editing**: Edit tournament details, typing passages, and timer settings
+- **Flexible Timer Controls**: Set 1, 3, 5 minutes or unlimited time for each tournament
 
 ## 🛠️ Technology Stack
 
@@ -102,9 +104,16 @@ The application will be available at:
 2. **Create a Tournament**
    - Click "Create Tournament" on the dashboard
    - Fill in tournament details (name, description, dates)
+   - Set typing passage with line break support
+   - Choose timer duration (No timer, 1, 3, or 5 minutes)
    - Save the tournament
 
-3. **Manage Invite Codes**
+3. **Edit Tournament** (Optional)
+   - Click "Edit" button on any tournament in the dashboard
+   - Modify name, description, typing passage, or timer settings
+   - Update tournament details anytime before or during competition
+
+4. **Manage Invite Codes**
    1. Go to "Manage Invite Codes"
    2. Select your tournament
    3. **Bulk-Generate Random Codes**
@@ -114,11 +123,11 @@ The application will be available at:
       - Type any alphanumeric code (4-20 chars) in the *Create Custom Invite Code* box
       - Click **Create**
 
-4. **Activate Tournament**
+5. **Activate Tournament**
    - Go back to dashboard
    - Set tournament status to "Active"
 
-5. **Monitor Results**
+6. **Monitor Results**
    - View real-time results as students complete challenges
    - Export data to CSV for analysis
 
@@ -132,7 +141,7 @@ The application will be available at:
    - Read the instructions
    - Click "Start Challenge" when ready
    - Type the text as accurately and quickly as possible
-   - You have exactly 1 minute
+   - Timer duration varies by tournament (1, 3, 5 minutes or unlimited)
 
 3. **View Results**
    - See your personal results immediately
