@@ -5,6 +5,16 @@ import axios from 'axios';
 const AdminDashboard = () => {
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [editingTournament, setEditingTournament] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    description: '',
+    start_date: '',
+    end_date: '',
+    typing_text: '',
+    timer_duration: 60
+  });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, value: '' });
   const navigate = useNavigate();
 
@@ -45,6 +55,46 @@ const AdminDashboard = () => {
     } catch (error) {
       alert('Failed to delete tournament');
     }
+  };
+
+  const handleEdit = (tournament) => {
+    setEditingTournament(tournament);
+    setEditFormData({
+      name: tournament.name,
+      description: tournament.description || '',
+      start_date: tournament.start_date ? new Date(tournament.start_date).toISOString().slice(0, 16) : '',
+      end_date: tournament.end_date ? new Date(tournament.end_date).toISOString().slice(0, 16) : '',
+      typing_text: tournament.typing_text || '',
+      timer_duration: tournament.timer_duration || 60
+    });
+  };
+
+  const handleEditChange = (e) => {
+    setEditFormData({
+      ...editFormData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      console.log('Updating tournament:', editingTournament.id, editFormData);
+      await axios.put(`/api/tournaments/${editingTournament.id}`, editFormData);
+      console.log('Tournament updated successfully');
+      setEditingTournament(null);
+      loadTournaments();
+    } catch (error) {
+      console.error('Error updating tournament:', error.response?.data || error.message);
+      alert('Failed to update tournament: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeEditModal = () => {
+    setEditingTournament(null);
   };
 
   const getStatusColor = (status) => {
@@ -235,6 +285,12 @@ const AdminDashboard = () => {
                           >
                             Delete
                           </button>
+                          <button
+                            onClick={() => handleEdit(tournament)}
+                            className="btn-primary px-3 py-1 text-sm"
+                          >
+                            Edit
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -289,6 +345,142 @@ const AdminDashboard = () => {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Tournament Modal */}
+      {editingTournament && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface0 border border-surface1 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-text">Edit Tournament</h2>
+              <button
+                onClick={closeEditModal}
+                className="text-subtext0 hover:text-text"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="space-y-6">
+              <div>
+                <label htmlFor="edit_name" className="block text-sm font-medium text-text mb-2">
+                  Tournament Name *
+                </label>
+                <input
+                  type="text"
+                  id="edit_name"
+                  name="name"
+                  value={editFormData.name}
+                  onChange={handleEditChange}
+                  className="input-field w-full"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="edit_description" className="block text-sm font-medium text-text mb-2">
+                  Description
+                </label>
+                <textarea
+                  id="edit_description"
+                  name="description"
+                  value={editFormData.description}
+                  onChange={handleEditChange}
+                  className="input-field w-full h-24 resize-none"
+                  rows="4"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="edit_typing_text" className="block text-sm font-medium text-text mb-2">
+                  Typing Passage *
+                </label>
+                <textarea
+                  id="edit_typing_text"
+                  name="typing_text"
+                  value={editFormData.typing_text}
+                  onChange={handleEditChange}
+                  className="input-field w-full h-32 resize-none font-mono"
+                  required
+                  rows="6"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="edit_timer_duration" className="block text-sm font-medium text-text mb-2">
+                  Timer Duration
+                </label>
+                <select
+                  id="edit_timer_duration"
+                  name="timer_duration"
+                  value={editFormData.timer_duration}
+                  onChange={handleEditChange}
+                  className="input-field w-full"
+                >
+                  <option value={0}>No Timer (Unlimited Time)</option>
+                  <option value={60}>1 Minute</option>
+                  <option value={180}>3 Minutes</option>
+                  <option value={300}>5 Minutes</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label htmlFor="edit_start_date" className="block text-sm font-medium text-text mb-2">
+                    Start Date
+                  </label>
+                  <input
+                    type="datetime-local"
+                    id="edit_start_date"
+                    name="start_date"
+                    value={editFormData.start_date}
+                    onChange={handleEditChange}
+                    className="input-field w-full"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="edit_end_date" className="block text-sm font-medium text-text mb-2">
+                    End Date
+                  </label>
+                  <input
+                    type="datetime-local"
+                    id="edit_end_date"
+                    name="end_date"
+                    value={editFormData.end_date}
+                    onChange={handleEditChange}
+                    className="input-field w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-4">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary flex-1 py-3 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-crust mr-2"></div>
+                      Updating...
+                    </div>
+                  ) : (
+                    'Update Tournament'
+                  )}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="btn-secondary px-6 py-3 text-lg"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

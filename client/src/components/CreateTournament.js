@@ -8,7 +8,8 @@ const CreateTournament = () => {
     description: '',
     start_date: '',
     end_date: '',
-    typing_text: ''
+    typing_text: '',
+    timer_duration: 60
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -103,6 +104,24 @@ const CreateTournament = () => {
               />
             </div>
 
+            <div>
+              <label htmlFor="timer_duration" className="block text-sm font-medium text-text mb-2">
+                Timer Duration
+              </label>
+              <select
+                id="timer_duration"
+                name="timer_duration"
+                value={formData.timer_duration}
+                onChange={handleChange}
+                className="input-field w-full"
+              >
+                <option value={0}>No Timer (Unlimited Time)</option>
+                <option value={60}>1 Minute</option>
+                <option value={180}>3 Minutes</option>
+                <option value={300}>5 Minutes</option>
+              </select>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label htmlFor="start_date" className="block text-sm font-medium text-text mb-2">
@@ -178,7 +197,7 @@ const CreateTournament = () => {
           <div className="space-y-3 text-subtext0">
             <div className="flex items-start">
               <span className="text-blue mr-2">•</span>
-              <span>Students will have exactly 1 minute to complete the typing challenge</span>
+              <span>Students will have {formData.timer_duration === 0 ? 'unlimited time' : `${formData.timer_duration / 60} minute${formData.timer_duration / 60 > 1 ? 's' : ''}`} to complete the typing challenge</span>
             </div>
             <div className="flex items-start">
               <span className="text-blue mr-2">•</span>

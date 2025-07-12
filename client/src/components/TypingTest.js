@@ -7,7 +7,8 @@ const TypingTest = () => {
   const [userInput, setUserInput] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [startTime, setStartTime] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [timerDuration, setTimerDuration] = useState(60);
   const [isActive, setIsActive] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [wpm, setWpm] = useState(0);
@@ -30,6 +31,8 @@ const TypingTest = () => {
         const response = await axios.get(`/api/tournaments/${tournamentId}`);
         setText(response.data.typing_text || '');
         setTotalWords((response.data.typing_text || '').split(' ').length);
+        setTimerDuration(response.data.timer_duration || 60);
+        setTimeLeft(response.data.timer_duration || 60);
       } catch (err) {
         setText('Error loading typing passage.');
         setTotalWords(0);
@@ -61,7 +64,7 @@ const TypingTest = () => {
     setIsActive(false);
     setIsFinished(true);
     
-    const timeTaken = 60 - timeLeft;
+    const timeTaken = timerDuration - timeLeft;
     const calculatedWpm = Math.round((correctWords / timeTaken) * 60);
     const calculatedAccuracy = Math.round(((totalWords - errors.length) / totalWords) * 100);
     
@@ -223,7 +226,11 @@ const TypingTest = () => {
           <div className="card mb-6 text-center">
             <h2 className="text-xl font-semibold text-text mb-2">Ready to Start?</h2>
             <p className="text-subtext0 mb-4">
-              You will have exactly 1 minute to type as many words as possible. 
+              {timerDuration === 0 ? (
+                'You have unlimited time to complete the typing challenge.'
+              ) : (
+                `You will have exactly ${timerDuration / 60} minute${timerDuration / 60 > 1 ? 's' : ''} to type as many words as possible.`
+              )}
               Start typing below to begin the challenge!
             </p>
             <button

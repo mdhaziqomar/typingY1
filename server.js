@@ -57,6 +57,7 @@ async function initializeDatabase() {
         end_date TIMESTAMP,
         status VARCHAR(20) DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'active', 'completed')),
         typing_text TEXT,
+        timer_duration INTEGER DEFAULT 60,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -111,6 +112,15 @@ async function initializeDatabase() {
       await connection.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2)', ['admin', hashedPassword]);
     }
     
+    // Add timer_duration column if it doesn't exist
+    try {
+      await connection.query('ALTER TABLE tournaments ADD COLUMN timer_duration INTEGER DEFAULT 60');
+      console.log('Added timer_duration column to tournaments table');
+    } catch (error) {
+      // Column already exists, ignore error
+      console.log('timer_duration column already exists');
+    }
+    
     connection.release();
     console.log('Database initialized successfully');
   } catch (error) {
@@ -163,10 +173,10 @@ app.post('/api/admin/login', async (req, res) => {
 // Create tournament
 app.post('/api/tournaments', async (req, res) => {
   try {
-    const { name, description, start_date, end_date, typing_text } = req.body;
+    const { name, description, start_date, end_date, typing_text, timer_duration } = req.body;
     const { rows } = await pool.query(
-      'INSERT INTO tournaments (name, description, start_date, end_date, typing_text) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [name, description, start_date, end_date, typing_text]
+      'INSERT INTO tournaments (name, description, start_date, end_date, typing_text, timer_duration) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [name, description, start_date, end_date, typing_text, timer_duration || 60]
     );
     res.json({ id: rows[0].id, message: 'Tournament created successfully' });
   } catch (error) {
@@ -204,6 +214,26 @@ app.get('/api/tournaments/:id', async (req, res) => {
       created_at: formatDate(row.created_at)
     });
   } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update tournament details
+app.put('/api/tournaments/:id', async (req, res) => {
+  try {
+    const { name, description, start_date, end_date, typing_text, timer_duration } = req.body;
+    const { id } = req.params;
+    
+    console.log('Updating tournament:', id, { name, description, start_date, end_date, typing_text, timer_duration });
+    
+    await pool.query(
+      'UPDATE tournaments SET name = $1, description = $2, start_date = $3, end_date = $4, typing_text = $5, timer_duration = $6 WHERE id = $7',
+      [name, description, start_date, end_date, typing_text, timer_duration || 60, id]
+    );
+    
+    res.json({ message: 'Tournament updated successfully' });
+  } catch (error) {
+    console.error('Database error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
