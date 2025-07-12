@@ -63,7 +63,7 @@
   }
   
   .typing-text {
-    @apply font-mono text-lg leading-relaxed;
+    @apply font-mono text-lg leading-relaxed whitespace-pre-wrap;
   }
   
   .typing-cursor {

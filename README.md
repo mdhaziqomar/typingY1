@@ -5,7 +5,7 @@ A modern, real-time typing competition system designed specifically for Chung Hw
 ## ✨ Features
 
 ### For Students
-- **Secure Login**: Students login using unique invite codes
+- **Secure Login**: Students login using reusable invite codes (bulk-generated or custom)
 - **1-Minute Typing Challenge**: Timed typing tests with age-appropriate texts
 - **Real-time Results**: Live leaderboard updates as students complete challenges
 - **Beautiful UI**: Modern interface with Catppuccin Mocha theme
@@ -13,7 +13,7 @@ A modern, real-time typing competition system designed specifically for Chung Hw
 
 ### For Administrators
 - **Tournament Management**: Create and manage multiple typing competitions
-- **Invite Code Generation**: Bulk generate unique codes for students
+- **Invite Code Management**: Bulk-generate random codes or create your own custom codes
 - **Real-time Monitoring**: Watch results come in live
 - **Data Export**: Export results to CSV for analysis
 - **Comprehensive Dashboard**: Overview of all tournaments and statistics
@@ -104,11 +104,15 @@ The application will be available at:
    - Fill in tournament details (name, description, dates)
    - Save the tournament
 
-3. **Generate Invite Codes**
-   - Go to "Manage Invite Codes"
-   - Select your tournament
-   - Enter student data in format: "Name,Class" (one per line)
-   - Click "Generate Codes"
+3. **Manage Invite Codes**
+   1. Go to "Manage Invite Codes"
+   2. Select your tournament
+   3. **Bulk-Generate Random Codes**
+      - Paste student data in format: `Name,Class` (one per line)
+      - Click **Generate Codes**
+   4. **Create Custom Code** (optional)
+      - Type any alphanumeric code (4-20 chars) in the *Create Custom Invite Code* box
+      - Click **Create**
 
 4. **Activate Tournament**
    - Go back to dashboard
@@ -152,7 +156,7 @@ This application uses the **Catppuccin Mocha** color palette, providing:
 ### Security Features
 - JWT-based authentication
 - Secure invite code system
-- One-time use codes prevent cheating
+- Reusable codes with per-student name & class capture
 - Admin-only access to sensitive features
 
 ### Data Management
